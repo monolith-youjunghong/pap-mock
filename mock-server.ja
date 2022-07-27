@@ -1,0 +1,75 @@
+/**
+ * @update: 2022-03-08 13:07:23
+ */
+const http = require("http");
+const crypto = require("crypto");
+const host = 'localhost';
+const port = 6329;
+
+const allowedOrigins = ['http://127.0.0.1:8080', 'http://localhost:8080', 'https://dev-operation-reservation.981park.net', 'https://dev-operation.981park.net', 'https://dev-kiosk.981park.net'];
+let count = 0;
+
+const uuidv4 = () => {
+    return crypto.randomUUID().replace(/-/g, '').toUpperCase().substring(0, 10);
+  };
+
+const requestListener = async function (req, res) {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    const buffers = [];
+    for await (const chunk of req) {
+        buffers.push(chunk);
+    }
+
+    const data = Buffer.concat(buffers).toString();
+
+    if (!data) {
+        res.writeHead(200);
+        res.end('{}');
+        return;
+    }
+
+    console.log('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    console.log(`> 요청 데이터: ${data}`);
+
+    const cardNo = JSON.parse(data).cardNo || '';
+    let resCode = 404;
+    let resBody = JSON.stringify({error:"Resource not found"});
+    let resDescription = '';
+    switch (count % 3) {
+        case 0: // 200 + NFC 정상
+            resCode = 200;
+            resBody = JSON.stringify({ cardNo, nfcuuid: uuidv4() });
+            resDescription = '[200 + NFC 정상]';
+            break
+        case 1: // 200 + NFC 불량
+            resCode = 200;
+            resBody = JSON.stringify({ cardNo, nfcuuid: '90432' });
+            resDescription = '[200 + NFC 불량]';
+            break
+        case 2: // 500
+            resCode = 500;
+            resBody = '';
+            resDescription = '[500]';
+            break
+        default:
+    }
+
+    console.log('- - - - - - - - - - - - - - - - - -')
+    console.log(`> 응답 데이터: ${resDescription}`)
+    console.log(`\tcode: ${resCode}`)
+    console.log(`\tbody: ${resBody}`)
+
+    res.writeHead(resCode);
+    res.end(resBody);
+
+    console.log('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<')
+
+    count += 1;
+};
+
+const server = http.createServer(requestListener);
+server.listen(port, host, () => {
+    console.log(`Server is running on http://${host}:${port}`);
+});
